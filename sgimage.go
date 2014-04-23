@@ -1,4 +1,4 @@
-package main
+package sgreader
 
 import (
 	"encoding/binary"
@@ -19,83 +19,84 @@ const (
 	ISOMETRIC_LARGE_TILE_BYTES  = 3200
 )
 
-type SgImageRecord struct {
-	Offset             uint32
-	Length             uint32
-	UncompressedLength uint32
+type imageRecord struct {
+	offset             uint32
+	length             uint32
+	uncompressedLength uint32
 	_                  [4]byte
-	InvertOffset       int32
-	Width              int16
-	Height             int16
+	invertOffset       int32
+	width              int16
+	height             int16
 	_                  [26]byte
-	Type               uint16
-	Flags              [4]uint8
-	BitmapId           uint8
+	iType              uint16
+	flags              [4]uint8
+	bitmapId           uint8
 	_                  [7]byte
-	AlphaOffset        uint32
-	AlphaLength        uint32
+	alphaOffset        uint32
+	alphaLength        uint32
 }
 
-type SgImageRecordNonAlpha struct {
-	Offset             uint32
-	Length             uint32
-	UncompressedLength uint32
+type imageRecordNonAlpha struct {
+	offset             uint32
+	length             uint32
+	uncompressedLength uint32
 	_                  [4]byte
-	InvertOffset       int32
-	Width              int16
-	Height             int16
+	invertOffset       int32
+	width              int16
+	height             int16
 	_                  [26]byte
-	Type               uint16
-	Flags              [4]uint8
-	BitmapId           uint8
+	iType              uint16
+	flags              [4]uint8
+	bitmapId           uint8
 	_                  [7]byte
 }
 
-func (s *SgImageRecordNonAlpha) Convert() *SgImageRecord {
-	return &SgImageRecord{
-		Offset:             s.Offset,
-		Length:             s.Length,
-		UncompressedLength: s.UncompressedLength,
-		InvertOffset:       s.InvertOffset,
-		Width:              s.Width,
-		Height:             s.Height,
-		Type:               s.Type,
-		Flags:              s.Flags,
-		BitmapId:           s.BitmapId,
+func (s *imageRecordNonAlpha) convert() *imageRecord {
+	return &imageRecord{
+		offset:             s.offset,
+		length:             s.length,
+		uncompressedLength: s.uncompressedLength,
+		invertOffset:       s.invertOffset,
+		width:              s.width,
+		height:             s.height,
+		iType:              s.iType,
+		flags:              s.flags,
+		bitmapId:           s.bitmapId,
 	}
 }
 
-func NewSgImageRecord(r io.Reader, includeAlpha bool) (*SgImageRecord, error) {
+func newImageRecord(r io.Reader, includeAlpha bool) (*imageRecord, error) {
 	if includeAlpha {
-		record := &SgImageRecord{}
+		record := &imageRecord{}
 		err := binary.Read(r, binary.LittleEndian, record)
 		return record, err
 	}
 
-	record := &SgImageRecordNonAlpha{}
+	record := &imageRecordNonAlpha{}
 	err := binary.Read(r, binary.LittleEndian, record)
 	if err != nil {
 		return nil, err
 	}
-	return record.Convert(), nil
+	return record.convert(), nil
 }
 
+// SgImage stores the metadata of the image
 type SgImage struct {
-	record     *SgImageRecord
-	workRecord *SgImageRecord
+	record     *imageRecord
+	workRecord *imageRecord
 	parent     *SgBitmap
 	invert     bool
 	imageId    int
 }
 
-func NewSgImage(id int, r io.Reader, includeAlpha bool) (*SgImage, error) {
-	record, err := NewSgImageRecord(r, includeAlpha)
+func newSgImage(id int, r io.Reader, includeAlpha bool) (*SgImage, error) {
+	record, err := newImageRecord(r, includeAlpha)
 	if err != nil {
 		return nil, err
 	}
 	workRecord := record
 	invert := false
-	if record.InvertOffset > 0 {
+	if record.invertOffset > 0 {
 		invert = true
 	}
 	return &SgImage{
@@ -106,44 +107,51 @@ func NewSgImage(id int, r io.Reader, includeAlpha bool) (*SgImage, error) {
 	}, nil
 }
 
+// Retrieves the invert offset
 func (sgImage *SgImage) InvertOffset() int32 {
-	return sgImage.record.InvertOffset
+	return sgImage.record.invertOffset
 }
 
+// The ID of the image within the bitmap
 func (sgImage *SgImage) BitmapId() int {
 	if sgImage.workRecord != nil {
-		return int(sgImage.workRecord.BitmapId)
+		return int(sgImage.workRecord.bitmapId)
 	}
-	return int(sgImage.record.BitmapId)
+	return int(sgImage.record.bitmapId)
 }
 
+// Returns the width and height of this image
 func (sgImage *SgImage) String() string {
-	return fmt.Sprintf("%dx%d", int(sgImage.workRecord.Width), int(sgImage.workRecord.Height))
+	return fmt.Sprintf("%dx%d", int(sgImage.workRecord.width), int(sgImage.workRecord.height))
 }
 
+// Returns the full information of this image
 func (sgImage *SgImage) FullDescription() string {
 	flag := "internal"
-	if sgImage.workRecord.Flags[0] != 0 {
+	if sgImage.workRecord.flags[0] != 0 {
 		flag = "external"
 	}
-	return fmt.Sprintf("ID %d: offset %d, length %d, width %d, height %d, type %d, %s", sgImage.imageId, sgImage.workRecord.Offset, sgImage.workRecord.Length, sgImage.workRecord.Width, sgImage.workRecord.Height, sgImage.workRecord.Type, flag)
+	return fmt.Sprintf("ID %d: offset %d, length %d, width %d, height %d, type %d, %s", sgImage.imageId, sgImage.workRecord.offset, sgImage.workRecord.length, sgImage.workRecord.width, sgImage.workRecord.height, sgImage.workRecord.iType, flag)
 }
 
+// Set the work record of the inverted image
 func (sgImage *SgImage) SetInvertImage(invert *SgImage) {
 	sgImage.workRecord = invert.record
 }
 
+// Set the parent bitmap of the image
 func (sgImage *SgImage) SetParent(parent *SgBitmap) {
 	sgImage.parent = parent
 }
 
+// Get the image.RGBA object for this image
 func (sgImage *SgImage) GetImage() (*image.RGBA, error) {
 	if sgImage.parent == nil {
 		return nil, errors.New("Image has no bitmap parent")
 	}
-	if sgImage.workRecord.Width <= 0 || sgImage.workRecord.Height <= 0 {
-		return nil, fmt.Errorf("Width or height invalid (%dx%d)", sgImage.workRecord.Width, sgImage.workRecord.Height)
-	} else if sgImage.workRecord.Length <= 0 {
+	if sgImage.workRecord.width <= 0 || sgImage.workRecord.height <= 0 {
+		return nil, fmt.Errorf("Width or height invalid (%dx%d)", sgImage.workRecord.width, sgImage.workRecord.height)
+	} else if sgImage.workRecord.length <= 0 {
 		return nil, errors.New("No image data available")
 	}
 
@@ -152,11 +160,11 @@ func (sgImage *SgImage) GetImage() (*image.RGBA, error) {
 		return nil, err
 	}
 
-	result := image.NewRGBA(image.Rect(0, 0, int(sgImage.workRecord.Width), int(sgImage.workRecord.Height)))
+	result := image.NewRGBA(image.Rect(0, 0, int(sgImage.workRecord.width), int(sgImage.workRecord.height)))
 	// Initialize image to transparent black
 	draw.Draw(result, result.Bounds(), &image.Uniform{color.RGBA{0, 0, 0, 0}}, image.ZP, draw.Src)
 
-	switch sgImage.workRecord.Type {
+	switch sgImage.workRecord.iType {
 	case 0, 1, 10, 12, 13:
 		err = sgImage.loadPlainImage(result, buffer)
 	case 30:
@@ -164,14 +172,14 @@ func (sgImage *SgImage) GetImage() (*image.RGBA, error) {
 	case 256, 257, 276:
 		sgImage.loadSpriteImage(result, buffer)
 	default:
-		return nil, fmt.Errorf("Unknown image type: %d", sgImage.workRecord.Type)
+		return nil, fmt.Errorf("Unknown image type: %d", sgImage.workRecord.iType)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if sgImage.workRecord.AlphaLength > 0 {
-		alphaBuffer := buffer[sgImage.workRecord.Length:]
+	if sgImage.workRecord.alphaLength > 0 {
+		alphaBuffer := buffer[sgImage.workRecord.length:]
 		sgImage.loadAlphaMask(result, alphaBuffer)
 	}
 
@@ -192,24 +200,24 @@ func (sgImage *SgImage) fillBuffer() ([]byte, error) {
 	if sgImage.parent == nil {
 		return nil, errors.New("Image has no bitmap parent")
 	}
-	file, err := sgImage.parent.OpenFile(sgImage.workRecord.Flags[0] != 0)
+	file, err := sgImage.parent.OpenFile(sgImage.workRecord.flags[0] != 0)
 	if err != nil {
 		return nil, err
 	}
 
-	dataLength := sgImage.workRecord.Length + sgImage.workRecord.AlphaLength
+	dataLength := sgImage.workRecord.length + sgImage.workRecord.alphaLength
 	if dataLength <= 0 {
 		fmt.Printf("Data length: %d\n", dataLength)
 	}
 	buffer := make([]byte, dataLength)
 
-	if sgImage.workRecord.Flags[0] != 0 {
-		_, err := file.Seek(int64(sgImage.workRecord.Offset)-1, 0)
+	if sgImage.workRecord.flags[0] != 0 {
+		_, err := file.Seek(int64(sgImage.workRecord.offset)-1, 0)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		_, err := file.Seek(int64(sgImage.workRecord.Offset), 0)
+		_, err := file.Seek(int64(sgImage.workRecord.offset), 0)
 		if err != nil {
 			return nil, err
 		}
@@ -231,13 +239,13 @@ func (sgImage *SgImage) fillBuffer() ([]byte, error) {
 }
 
 func (sgImage *SgImage) loadPlainImage(img *image.RGBA, buffer []byte) error {
-	if int(sgImage.workRecord.Height)*int(sgImage.workRecord.Width)*2 != int(sgImage.workRecord.Length) {
+	if int(sgImage.workRecord.height)*int(sgImage.workRecord.width)*2 != int(sgImage.workRecord.length) {
 		return errors.New("Image data length doesn't match image size")
 	}
 
 	i := 0
-	for y := 0; y < int(sgImage.workRecord.Height); y++ {
-		for x := 0; x < int(sgImage.workRecord.Width); x++ {
+	for y := 0; y < int(sgImage.workRecord.height); y++ {
+		for x := 0; x < int(sgImage.workRecord.width); x++ {
 			sgImage.set555Pixel(img, x, y, uint16(buffer[i])|uint16(buffer[i]<<8))
 			i += 2
 		}
@@ -250,17 +258,17 @@ func (sgImage *SgImage) loadIsometricImage(img *image.RGBA, buffer []byte) error
 	if err != nil {
 		return err
 	}
-	sgImage.writeTransparentImage(img, buffer[sgImage.workRecord.UncompressedLength:], int(sgImage.workRecord.Length-sgImage.workRecord.UncompressedLength))
+	sgImage.writeTransparentImage(img, buffer[sgImage.workRecord.uncompressedLength:], int(sgImage.workRecord.length-sgImage.workRecord.uncompressedLength))
 	return nil
 }
 
 func (sgImage *SgImage) loadSpriteImage(img *image.RGBA, buffer []byte) {
-	sgImage.writeTransparentImage(img, buffer, int(sgImage.workRecord.Length))
+	sgImage.writeTransparentImage(img, buffer, int(sgImage.workRecord.length))
 }
 
 func (sgImage *SgImage) loadAlphaMask(img *image.RGBA, buffer []byte) {
 	width := img.Bounds().Dx()
-	length := int(sgImage.workRecord.AlphaLength)
+	length := int(sgImage.workRecord.alphaLength)
 	var i, x, y int
 
 	for i < length {
@@ -294,7 +302,7 @@ func (sgImage *SgImage) writeIsometricBase(img *image.RGBA, buffer []byte) error
 	height := (width + 2) / 2 /* 58 -> 30, 118 -> 60, etc */
 	heightOffset := img.Bounds().Dy() - height
 	var size int
-	size = int(sgImage.workRecord.Flags[3])
+	size = int(sgImage.workRecord.flags[3])
 	yOffset := heightOffset
 	var xOffset, tileBytes, tileHeight, tileWidth int
 
@@ -325,8 +333,8 @@ func (sgImage *SgImage) writeIsometricBase(img *image.RGBA, buffer []byte) error
 	}
 
 	// Check if buffer length is enough: (width + 2) * height / 2 * 2bpp
-	if (width+2)*height != int(sgImage.workRecord.UncompressedLength) {
-		return fmt.Errorf("Data length doesn't match footprint size: %d vs %d (%d) %d", (width+2)*height, sgImage.workRecord.UncompressedLength, sgImage.workRecord.Length, sgImage.workRecord.InvertOffset)
+	if (width+2)*height != int(sgImage.workRecord.uncompressedLength) {
+		return fmt.Errorf("Data length doesn't match footprint size: %d vs %d (%d) %d", (width+2)*height, sgImage.workRecord.uncompressedLength, sgImage.workRecord.length, sgImage.workRecord.invertOffset)
 	}
 
 	i := 0
