@@ -1,5 +1,8 @@
 // Package sgreader provides functions for reading SG files which are used by
 // City Builder games (Zeus, Caesar 3, Pharaoh etc) to store art assets.
+// 
+// Usage:
+//    file := sgreader.ReadFile("C3.sg2")
 package sgreader
 
 import (

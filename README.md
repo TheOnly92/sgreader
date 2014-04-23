@@ -6,7 +6,7 @@
 
 ## Documentation
 
-<http://go.pkgdoc.org/github.com/TheOnly92/sgreader>
+<http://godoc.org/github.com/TheOnly92/sgreader>
 
 ## Usage
 
