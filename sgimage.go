@@ -216,8 +216,8 @@ func (sgImage *SgImage) fillBuffer() ([]byte, error) {
 	}
 
 	dataRead, err := file.Read(buffer)
-	if int(dataLength) != dataRead {
-		if dataRead+4 == int(dataLength) && err == io.EOF {
+	if int(dataLength) != dataRead || err != nil {
+		if dataRead+4 == int(dataLength) {
 			buffer[dataRead] = 0
 			buffer[dataRead+1] = 0
 			buffer[dataRead+2] = 0
@@ -294,7 +294,7 @@ func (sgImage *SgImage) writeIsometricBase(img *image.RGBA, buffer []byte) error
 	height := (width + 2) / 2 /* 58 -> 30, 118 -> 60, etc */
 	heightOffset := img.Bounds().Dy() - height
 	var size int
-    size = int(sgImage.workRecord.Flags[3])
+	size = int(sgImage.workRecord.Flags[3])
 	yOffset := heightOffset
 	var xOffset, tileBytes, tileHeight, tileWidth int
 

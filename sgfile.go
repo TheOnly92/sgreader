@@ -26,9 +26,13 @@ type SgHeader struct {
 	FilesizeExternal              uint32
 }
 
-func NewSgHeader(r io.Reader) (*SgHeader, error) {
+func NewSgHeader(r io.ReadSeeker) (*SgHeader, error) {
 	header := &SgHeader{}
 	err := binary.Read(r, binary.LittleEndian, header)
+	if err != nil {
+		return nil, err
+	}
+	_, err = r.Seek(int64(SG_HEADER_SIZE), 0)
 	return header, err
 }
 
@@ -50,6 +54,7 @@ func NewSgFile(filename string) *SgFile {
 
 func (sgFile *SgFile) Load() error {
 	file, err := os.OpenFile(sgFile.filename, os.O_RDONLY, 0)
+	defer file.Close()
 	if err != nil {
 		return err
 	}
@@ -150,4 +155,40 @@ func (sgFile *SgFile) MaxBitmapRecords() int {
 		return 100 // SG2
 	}
 	return 200 // SG3
+}
+
+func (sgFile *SgFile) ImageCount(bitmapId int) int {
+	if bitmapId < 0 || bitmapId >= len(sgFile.bitmaps) {
+		return -1
+	}
+
+	return sgFile.bitmaps[bitmapId].ImageCount()
+}
+
+func (sgFile *SgFile) GetBitmap(bitmapId int) *SgBitmap {
+	if bitmapId < 0 || bitmapId >= len(sgFile.bitmaps) {
+		return nil
+	}
+
+	return sgFile.bitmaps[bitmapId]
+}
+
+func (sgFile *SgFile) GetBitmapDescription(bitmapId int) string {
+	if bitmapId < 0 || bitmapId >= len(sgFile.bitmaps) {
+		return ""
+	}
+
+	return sgFile.bitmaps[bitmapId].String()
+}
+
+func (sgFile *SgFile) Basename() string {
+	return sgFile.baseFilename
+}
+
+func (sgFile *SgFile) BitmapCount() int {
+	return len(sgFile.bitmaps)
+}
+
+func (sgFile *SgFile) TotalImageCount() int {
+	return len(sgFile.images)
 }

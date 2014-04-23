@@ -23,6 +23,12 @@ type SgBitmapRecord struct {
 	NumImages  uint32
 	StartIndex uint32
 	EndIndex   uint32
+	_          [64]byte
+}
+
+func (s *SgBitmapRecord) FilenameString() string {
+	tmp := strings.Split(strings.Trim(string(s.Filename[:65]), "\x00"), "\x00")
+	return tmp[0]
 }
 
 func NewSgBitmapRecord(r io.Reader) (*SgBitmapRecord, error) {
@@ -61,10 +67,8 @@ func (sgBitmap *SgBitmap) String() string {
 }
 
 func (sgBitmap *SgBitmap) BitmapName() string {
-	if strings.HasSuffix(strings.ToLower(string(sgBitmap.record.Filename[:65])), ".bmp") {
-		return string(sgBitmap.record.Filename[0 : len(sgBitmap.record.Filename)-4])
-	}
-	return string(sgBitmap.record.Filename[:65])
+	filename := strings.ToLower(sgBitmap.record.FilenameString())
+	return strings.Replace(filename, ".bmp", "", -1)
 }
 
 func (sgBitmap *SgBitmap) AddImage(child *SgImage) {
@@ -97,13 +101,17 @@ func (sgBitmap *SgBitmap) OpenFile(isExtern bool) (*os.File, error) {
 			return nil, err
 		}
 
-		file, err := os.OpenFile(filename, os.O_RDONLY, 0)
+		file, err := os.Open(filename)
 		if err != nil {
 			return nil, err
 		}
 		sgBitmap.file = file
 	}
 	return sgBitmap.file, nil
+}
+
+func (sgBitmap *SgBitmap) CloseFile() error {
+	return sgBitmap.file.Close()
 }
 
 func (sgBitmap *SgBitmap) find555File() (string, error) {
@@ -116,7 +124,7 @@ func (sgBitmap *SgBitmap) find555File() (string, error) {
 	// either the same name as sg(2|3) or from file record
 	basename := ""
 	if sgBitmap.isExtern {
-		basename = string(sgBitmap.record.Filename[:65])
+		basename = sgBitmap.record.FilenameString()
 	} else {
 		basename = fi.Name()
 	}
@@ -135,7 +143,8 @@ func (sgBitmap *SgBitmap) find555File() (string, error) {
 		return path, nil
 	}
 
-	_, err = os.Open(filepath.Dir(sgBitmap.sgFilename) + string(os.PathSeparator) + "555")
+	file, err := os.Open(filepath.Dir(sgBitmap.sgFilename) + string(os.PathSeparator) + "555")
+	defer file.Close()
 	if err != nil {
 		return "", err
 	}
@@ -147,6 +156,7 @@ func (sgBitmap *SgBitmap) findFilenameCaseInsensitive(directory, filename string
 	filename = strings.ToLower(filename)
 
 	dir, err := os.Open(directory)
+	defer dir.Close()
 	if err != nil {
 		return "", err
 	}
