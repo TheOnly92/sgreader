@@ -1,6 +1,6 @@
 // Package sgreader provides functions for reading SG files which are used by
 // City Builder games (Zeus, Caesar 3, Pharaoh etc) to store art assets.
-// 
+//
 // Usage:
 //    file := sgreader.ReadFile("C3.sg2")
 package sgreader
@@ -20,24 +20,24 @@ const (
 	recordSize int = 200
 )
 
-type bitmapRecord struct {
-	filename   [65]byte
-	comment    [51]byte
-	width      uint32
-	height     uint32
-	numImages  uint32
-	startIndex uint32
-	endIndex   uint32
+type SgBitmapRecord struct {
+	Filename   [65]byte
+	Comment    [51]byte
+	Width      uint32
+	Height     uint32
+	NumImages  uint32
+	StartIndex uint32
+	EndIndex   uint32
 	_          [64]byte
 }
 
-func (s *bitmapRecord) filenameString() string {
-	tmp := strings.Split(strings.Trim(string(s.filename[:65]), "\x00"), "\x00")
+func (s *SgBitmapRecord) filenameString() string {
+	tmp := strings.Split(strings.Trim(string(s.Filename[:65]), "\x00"), "\x00")
 	return tmp[0]
 }
 
-func newBitmapRecord(r io.Reader) (*bitmapRecord, error) {
-	record := &bitmapRecord{}
+func newBitmapRecord(r io.Reader) (*SgBitmapRecord, error) {
+	record := &SgBitmapRecord{}
 	err := binary.Read(r, binary.LittleEndian, record)
 	return record, err
 }
@@ -45,7 +45,7 @@ func newBitmapRecord(r io.Reader) (*bitmapRecord, error) {
 // SgBitmap stores references to a series of images
 type SgBitmap struct {
 	images     []*SgImage
-	record     *bitmapRecord
+	record     *SgBitmapRecord
 	file       *os.File
 	sgFilename string
 	bitmapId   int

@@ -13,21 +13,21 @@ const (
 	headerSize int = 680
 )
 
-type header struct {
-	sgFilesize                    uint32
-	version                       uint32
-	unknown1                      uint32
-	maxImageRecords               int32
-	numImageRecords               int32
-	numBitmapRecords              int32
-	numBitmapRecordsWithoutSystem int32
-	totalFilesize                 uint32
-	filesize555                   uint32
-	filesizeExternal              uint32
+type SgHeader struct {
+	SgFilesize                    uint32
+	Version                       uint32
+	Unknown1                      uint32
+	MaxImageRecords               int32
+	NumImageRecords               int32
+	NumBitmapRecords              int32
+	NumBitmapRecordsWithoutSystem int32
+	TotalFilesize                 uint32
+	Filesize555                   uint32
+	FilesizeExternal              uint32
 }
 
-func newHeader(r io.ReadSeeker) (*header, error) {
-	header := &header{}
+func newHeader(r io.ReadSeeker) (*SgHeader, error) {
+	header := &SgHeader{}
 	err := binary.Read(r, binary.LittleEndian, header)
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ type SgFile struct {
 	images       []*SgImage
 	filename     string
 	baseFilename string
-	header       *header
+	header       *SgHeader
 }
 
 // Returns a new SgFile object that is tied to the file
@@ -71,7 +71,7 @@ func (sgFile *SgFile) Load() error {
 		return errors.New("Incorrect sg version")
 	}
 
-	fmt.Printf("Read header, num bitmaps = %d, num images = %d\n", sgFile.header.numBitmapRecords, sgFile.header.numImageRecords)
+	fmt.Printf("Read header, num bitmaps = %d, num images = %d\n", sgFile.header.NumBitmapRecords, sgFile.header.NumImageRecords)
 
 	err = sgFile.loadBitmaps(file)
 	if err != nil {
@@ -83,7 +83,7 @@ func (sgFile *SgFile) Load() error {
 		return err
 	}
 
-	err = sgFile.loadImages(file, sgFile.header.version >= 0xd6)
+	err = sgFile.loadImages(file, sgFile.header.Version >= 0xd6)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (sgFile *SgFile) Load() error {
 }
 
 func (sgFile *SgFile) loadBitmaps(r io.Reader) error {
-	for i := 0; i < int(sgFile.header.numBitmapRecords); i++ {
+	for i := 0; i < int(sgFile.header.NumBitmapRecords); i++ {
 		bitmap, err := newSgBitmap(i, sgFile.filename, r)
 		if err != nil {
 			return err
@@ -113,7 +113,7 @@ func (sgFile *SgFile) loadBitmaps(r io.Reader) error {
 func (sgFile *SgFile) loadImages(r io.Reader, includeAlpha bool) error {
 	newSgImage(0, r, includeAlpha)
 
-	for i := 0; i < int(sgFile.header.numImageRecords); i++ {
+	for i := 0; i < int(sgFile.header.NumImageRecords); i++ {
 		image, err := newSgImage(i+1, r, includeAlpha)
 		if err != nil {
 			return err
@@ -135,18 +135,18 @@ func (sgFile *SgFile) loadImages(r io.Reader, includeAlpha bool) error {
 }
 
 func (sgFile *SgFile) checkVersion() bool {
-	if sgFile.header.version == 0xd3 {
+	if sgFile.header.Version == 0xd3 {
 		// SG2 file: filesize = 74480 or 522680 (depending on whether it's
 		// a "normal" sg2 or an enemy sg2
-		if sgFile.header.sgFilesize == 74480 || sgFile.header.sgFilesize == 522680 {
+		if sgFile.header.SgFilesize == 74480 || sgFile.header.SgFilesize == 522680 {
 			return true
 		}
-	} else if sgFile.header.version == 0xd5 || sgFile.header.version == 0xd6 {
+	} else if sgFile.header.Version == 0xd5 || sgFile.header.Version == 0xd6 {
 		fi, err := os.Stat(sgFile.filename)
 		if err != nil {
 			return false
 		}
-		if sgFile.header.sgFilesize == 74480 || int64(sgFile.header.sgFilesize) == fi.Size() {
+		if sgFile.header.SgFilesize == 74480 || int64(sgFile.header.SgFilesize) == fi.Size() {
 			return true
 		}
 	}
@@ -155,7 +155,7 @@ func (sgFile *SgFile) checkVersion() bool {
 
 // Get the maximum number of bitmap records for this sg file
 func (sgFile *SgFile) MaxBitmapRecords() int {
-	if sgFile.header.version == 0xd3 {
+	if sgFile.header.Version == 0xd3 {
 		return 100 // SG2
 	}
 	return 200 // SG3
